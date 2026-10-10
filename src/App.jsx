@@ -1458,6 +1458,10 @@ function ReglagesTab({ data, save, lastExport, onBackup }) {
           })}
         </div>
       </Card>
+
+      <div style={{ fontSize: 12, color: C.faint, textAlign: "center", padding: "4px 0 8px" }}>
+        Version du 10/10/2026, mise à jour automatique via GitHub
+      </div>
     </div>
   );
 }
