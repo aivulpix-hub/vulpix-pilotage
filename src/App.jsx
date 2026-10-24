@@ -137,6 +137,10 @@ const defaultSettings = {
   poidsCategories: { ads: 10, whatsapp: 10, gmb: 10, maintenance: 5, rapports: 5, autre: 0, posts: 60 },
   sessionsParMoisMaintenance: { ads: 4, whatsapp: 4, gmb: 2, maintenance: 2, rapports: 1, autre: 2 },
   rcProSouscrite: false,
+  // Seuils fiscaux (CA annuel, en €) — à confirmer avec un expert-comptable
+  caRepereLiberatoire: 28000,
+  caPlafondMax: 34000,
+  seuilTva: 37500,
 };
 
 const CATEGORIES = [
@@ -171,6 +175,7 @@ function useVulpixData() {
         sessions: loaded.sessions || [],
         mrrHistory: loaded.mrrHistory && loaded.mrrHistory.length > 0 ? loaded.mrrHistory : [{ month: monthKey(new Date()), mrr: 813 }],
         reminders: loaded.reminders || [],
+        caHistory: loaded.caHistory || [],
         settings: {
           ...defaultSettings,
           ...loaded.settings,
@@ -481,6 +486,83 @@ const inputStyle = {
 };
 
 /* ============================== DASHBOARD TAB ============================== */
+/* ============================== SEUILS FISCAUX ============================== */
+// CA de l'année : mois passés = CA encaissé saisi (à défaut, MRR figé du mois) ;
+// mois en cours et à venir = CA saisi, à défaut MRR actuel (projection à MRR constant).
+function computeCaYear(data, year, curMonth, mrrActif) {
+  const hist = data.caHistory || [];
+  const mrrHist = data.mrrHistory || [];
+  let passe = 0, estime = 0, restants = 0;
+  for (let m = 1; m <= 12; m++) {
+    const key = `${year}-${String(m).padStart(2, "0")}`;
+    const saisi = hist.find((h) => h.month === key);
+    if (key < curMonth) {
+      const v = saisi ? Number(saisi.ca) || 0 : Number((mrrHist.find((h) => h.month === key) || {}).mrr) || 0;
+      passe += v;
+      estime += v;
+    } else {
+      restants += 1;
+      estime += saisi ? Number(saisi.ca) || 0 : mrrActif;
+    }
+  }
+  return { passe, estime, restants };
+}
+
+function SeuilsFiscauxCard({ data, computed }) {
+  const st = { ...defaultSettings, ...data.settings };
+  const curYear = new Date().getFullYear();
+  const years = [...new Set([curYear, curYear + 1])];
+  const [year, setYear] = useState(years.includes(2027) ? 2027 : curYear);
+  const { passe, estime, restants } = computeCaYear(data, year, computed.curMonth, computed.mrrActif);
+  const rows = [
+    { label: "Repère prudent (versement libératoire)", val: st.caRepereLiberatoire },
+    { label: "Plafond haut estimé (versement libératoire)", val: st.caPlafondMax },
+    { label: "Franchise de TVA", val: st.seuilTva },
+  ];
+  const mrrMoyenAutorise = restants > 0 ? Math.max(0, (st.caRepereLiberatoire - passe) / restants) : null;
+  return (
+    <Card>
+      <SectionTitle right={
+        <select style={inputStyle} value={year} onChange={(e) => setYear(parseInt(e.target.value, 10))} aria-label="Année">
+          {years.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+      }>Seuils fiscaux</SectionTitle>
+      <div style={{ fontSize: 12, color: C.gray, margin: "-6px 0 14px", lineHeight: 1.5 }}>
+        CA estimé {year} : <b style={{ color: C.ink }}>{euro(estime)}</b>
+        {" "}(CA déjà acquis {euro(passe)}, puis MRR actuel de {euro(computed.mrrActif)} pour les {restants} mois restants ou saisis dans Réglages).
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {rows.map((r) => {
+          const pct = r.val > 0 ? (estime / r.val) * 100 : 0;
+          const over = estime > r.val;
+          const color = over ? C.zRed : pct >= 90 ? C.zOrange : C.zGreen;
+          const status = over ? `dépassé de ${euro(estime - r.val)}` : `marge ${euro(r.val - estime)}`;
+          return (
+            <div key={r.label}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", fontSize: 13, color: C.ink }}>
+                <span style={{ fontWeight: 600 }}>{r.label}</span>
+                <span style={{ color }}>{euro(estime)} / {euro(r.val)} · {status}</span>
+              </div>
+              <div style={{ height: 10, background: C.sunken, borderRadius: 6, marginTop: 6, overflow: "hidden" }}>
+                <div style={{ width: `${Math.min(100, pct)}%`, height: 10, background: color, borderRadius: 6 }} />
+              </div>
+              <div style={{ fontSize: 11, color: C.faint, marginTop: 4 }}>Équivaut à {euro(r.val / 12)} de MRR constant sur 12 mois</div>
+            </div>
+          );
+        })}
+      </div>
+      {mrrMoyenAutorise !== null && (
+        <div style={{ fontSize: 13, color: C.ink, marginTop: 16, padding: "10px 12px", background: C.sunken, borderRadius: 10, lineHeight: 1.5 }}>
+          Pour rester sous le repère prudent, le CA moyen doit rester à <b>{euro(mrrMoyenAutorise)} par mois</b> sur les {restants} mois restants de {year}.
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: C.faint, marginTop: 12, lineHeight: 1.5 }}>
+        Le CA de l'année N conditionne le versement libératoire de l'année N+2 (le CA 2027 joue sur 2029). Franchise de TVA : 37 500 € pour les prestations de services. Les repères sont des estimations à valider avec un expert-comptable ; ajustables dans Réglages.
+      </div>
+    </Card>
+  );
+}
+
 function DashboardTab({ data, computed, recos, onToggleReminder }) {
   const tjmMax = Math.max(80, data.settings.tjmSeuils[2] * 1.5); // échelle fixe : au-delà, l'aiguille reste en butée
   const tjmZone = zoneColorForTJM(computed.tjmHoraire, data.settings.tjmSeuils);
@@ -543,6 +625,8 @@ function DashboardTab({ data, computed, recos, onToggleReminder }) {
           ))}
         </div>
       </Card>
+
+      <SeuilsFiscauxCard data={data} computed={computed} />
 
       {/* HISTORIQUE */}
       <Card>
@@ -1300,6 +1384,9 @@ function ReglagesTab({ data, save, lastExport, onBackup }) {
   const [reminderDate, setReminderDate] = useState("");
   const [reminderClient, setReminderClient] = useState("");
   const [mrrConfirm, setMrrConfirm] = useState("");
+  const [caMonth, setCaMonth] = useState(monthKey(new Date()));
+  const [caAmount, setCaAmount] = useState(0);
+  const [caConfirm, setCaConfirm] = useState("");
 
   const commit = (patch) => {
     const next = { ...s, ...patch };
@@ -1320,6 +1407,22 @@ function ReglagesTab({ data, save, lastExport, onBackup }) {
     setMrrConfirm(`✅ ${monthLabel(newMonth)} enregistré à ${euro(newMrr)}`);
     setTimeout(() => setMrrConfirm(""), 3000);
   };
+
+  const addCaPoint = () => {
+    if (!caMonth) {
+      setCaConfirm("Renseigne un mois valide.");
+      return;
+    }
+    const hist = data.caHistory || [];
+    const exists = hist.find((h) => h.month === caMonth);
+    const next = exists
+      ? hist.map((h) => (h.month === caMonth ? { ...h, ca: caAmount } : h))
+      : [...hist, { month: caMonth, ca: caAmount }];
+    save({ ...data, caHistory: next });
+    setCaConfirm(`✅ ${monthLabel(caMonth)} enregistré à ${euro(caAmount)}`);
+    setTimeout(() => setCaConfirm(""), 3000);
+  };
+  const removeCaPoint = (month) => save({ ...data, caHistory: (data.caHistory || []).filter((h) => h.month !== month) });
 
   const addReminder = () => {
     if (!reminderText.trim()) return;
@@ -1394,6 +1497,37 @@ function ReglagesTab({ data, save, lastExport, onBackup }) {
             RC Pro souscrite
           </label>
         </div>
+      </Card>
+
+      <Card>
+        <SectionTitle>Seuils fiscaux et CA encaissé</SectionTitle>
+        <p style={{ margin: "-6px 0 12px", fontSize: 13, color: C.gray, lineHeight: 1.55, maxWidth: 640 }}>
+          Les seuils sont des estimations à valider avec un expert-comptable. Saisis ici le CA réellement encaissé chaque mois : sans saisie, le tableau de bord projette le MRR actuel.
+        </p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <Field label="Repère prudent (€ de CA/an)"><input type="number" style={{ ...inputStyle, width: 120 }} value={s.caRepereLiberatoire ?? 28000} onChange={(e) => commit({ caRepereLiberatoire: parseFloat(e.target.value) || 0 })} /></Field>
+          <Field label="Plafond haut estimé (€)"><input type="number" style={{ ...inputStyle, width: 120 }} value={s.caPlafondMax ?? 34000} onChange={(e) => commit({ caPlafondMax: parseFloat(e.target.value) || 0 })} /></Field>
+          <Field label="Franchise de TVA (€)"><input type="number" style={{ ...inputStyle, width: 120 }} value={s.seuilTva ?? 37500} onChange={(e) => commit({ seuilTva: parseFloat(e.target.value) || 0 })} /></Field>
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginTop: 16 }}>
+          <Field label="Mois"><input type="month" style={inputStyle} value={caMonth} onChange={(e) => setCaMonth(e.target.value)} /></Field>
+          <Field label="CA encaissé (€)"><input type="number" style={{ ...inputStyle, width: 120 }} value={caAmount} onChange={(e) => setCaAmount(parseFloat(e.target.value) || 0)} /></Field>
+          <Btn onClick={addCaPoint}><Plus size={13} />Enregistrer</Btn>
+          {caConfirm && <span style={{ fontSize: 12, color: C.green, fontWeight: 600 }}>{caConfirm}</span>}
+        </div>
+        {(data.caHistory || []).length > 0 && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 4 }}>
+            {[...(data.caHistory || [])].sort((a, b) => (a.month < b.month ? 1 : -1)).map((h) => (
+              <div key={h.month} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, padding: "6px 10px", background: C.bg, borderRadius: 8 }}>
+                <span style={{ color: C.gray }}>{monthLabel(h.month)}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <b style={{ color: C.ink }}>{euro(h.ca)}</b>
+                  <button onClick={() => removeCaPoint(h.month)} aria-label={`Supprimer ${monthLabel(h.month)}`} style={{ border: "none", background: "transparent", cursor: "pointer", padding: 2 }}><Trash2 size={13} color={C.gray} /></button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       <Card>

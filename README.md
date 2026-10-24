@@ -55,6 +55,14 @@ src/lib/api.js     → lit/écrit dans localStorage
 2. Une fois ce site déployé et ouvert, clique sur **Restaurer** (onglet Clients) et
    sélectionne ce fichier — toutes tes données (clients, temps, réglages) sont reprises.
 
+## Seuils fiscaux (tableau de bord)
+
+Le bloc « Seuils fiscaux » compare le CA estimé de l'année à trois repères : repère prudent
+(28 000 €) et plafond haut estimé (34 000 €) du versement libératoire, et franchise de TVA
+(37 500 €). Les seuils et le CA encaissé mois par mois se règlent dans Réglages. Sans saisie,
+le CA est projeté à MRR constant. Les repères sont des estimations à valider avec un
+expert-comptable.
+
 ## Ce qui reste identique à la V1
 
 - Le calcul du TJM, MRR, net estimé, recommandations : code inchangé.
