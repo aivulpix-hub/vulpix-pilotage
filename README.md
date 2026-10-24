@@ -58,7 +58,7 @@ src/lib/api.js     → lit/écrit dans localStorage
 ## Seuils fiscaux (tableau de bord)
 
 Le bloc « Seuils fiscaux » compare le CA estimé de l'année à trois repères : repère prudent
-(28 000 €) et plafond haut estimé (34 000 €) du versement libératoire, et franchise de TVA
+(29 000 €) et plafond haut estimé (33 000 €) du versement libératoire, et franchise de TVA
 (37 500 €). Les seuils et le CA encaissé mois par mois se règlent dans Réglages. Sans saisie,
 le CA est projeté à MRR constant. Les repères sont des estimations à valider avec un
 expert-comptable.

@@ -138,8 +138,8 @@ const defaultSettings = {
   sessionsParMoisMaintenance: { ads: 4, whatsapp: 4, gmb: 2, maintenance: 2, rapports: 1, autre: 2 },
   rcProSouscrite: false,
   // Seuils fiscaux (CA annuel, en €) — à confirmer avec un expert-comptable
-  caRepereLiberatoire: 28000,
-  caPlafondMax: 34000,
+  caRepereLiberatoire: 29000,
+  caPlafondMax: 33000,
   seuilTva: 37500,
 };
 
@@ -1514,8 +1514,8 @@ function ReglagesTab({ data, save, lastExport, onBackup }) {
           Les seuils sont des estimations à valider avec un expert-comptable. Saisis ici le CA réellement encaissé chaque mois : sans saisie, le tableau de bord projette le MRR actuel.
         </p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <Field label="Repère prudent (€ de CA/an)"><input type="number" style={{ ...inputStyle, width: 120, background: "#FFF9C4" }} value={s.caRepereLiberatoire ?? 28000} onChange={(e) => commit({ caRepereLiberatoire: parseFloat(e.target.value) || 0 })} /></Field>
-          <Field label="Plafond haut estimé (€)"><input type="number" style={{ ...inputStyle, width: 120, background: "#FFF9C4" }} value={s.caPlafondMax ?? 34000} onChange={(e) => commit({ caPlafondMax: parseFloat(e.target.value) || 0 })} /></Field>
+          <Field label="Repère prudent (€ de CA/an)"><input type="number" style={{ ...inputStyle, width: 120, background: "#FFF9C4" }} value={s.caRepereLiberatoire ?? 29000} onChange={(e) => commit({ caRepereLiberatoire: parseFloat(e.target.value) || 0 })} /></Field>
+          <Field label="Plafond haut estimé (€)"><input type="number" style={{ ...inputStyle, width: 120, background: "#FFF9C4" }} value={s.caPlafondMax ?? 33000} onChange={(e) => commit({ caPlafondMax: parseFloat(e.target.value) || 0 })} /></Field>
           <Field label="Franchise de TVA (€)"><input type="number" style={{ ...inputStyle, width: 120, background: "#FFF9C4" }} value={s.seuilTva ?? 37500} onChange={(e) => commit({ seuilTva: parseFloat(e.target.value) || 0 })} /></Field>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginTop: 16 }}>
