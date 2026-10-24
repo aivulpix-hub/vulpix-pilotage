@@ -183,6 +183,12 @@ function useVulpixData() {
           sessionsParMoisMaintenance: { ...defaultSettings.sessionsParMoisMaintenance, ...(loaded.settings?.sessionsParMoisMaintenance || {}) },
         },
       };
+      // Migration : anciens repères par défaut (28 000 / 34 000) remplacés par les nouveaux (29 000 / 33 000)
+      if (merged.settings.caRepereLiberatoire === 28000 && merged.settings.caPlafondMax === 34000) {
+        merged.settings.caRepereLiberatoire = 29000;
+        merged.settings.caPlafondMax = 33000;
+        await saveData(merged);
+      }
       setData(merged);
       if (isEmpty) await saveData(merged);
     } catch (e) {
