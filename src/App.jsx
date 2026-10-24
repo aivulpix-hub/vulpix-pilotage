@@ -535,13 +535,15 @@ function SeuilsFiscauxCard({ data, computed }) {
         {rows.map((r) => {
           const pct = r.val > 0 ? (estime / r.val) * 100 : 0;
           const over = estime > r.val;
-          const color = over ? C.zRed : pct >= 90 ? C.zOrange : C.zGreen;
+          // vert < 70 %, jaune 70-90 %, orange 90-100 %, rouge si dépassé
+          const color = over ? C.zRed : pct >= 90 ? C.zOrange : pct >= 70 ? "#F2C230" : C.zGreen;
+          const textColor = over ? C.zRed : pct >= 90 ? C.orangeText : pct >= 70 ? "#8A6500" : C.green;
           const status = over ? `dépassé de ${euro(estime - r.val)}` : `marge ${euro(r.val - estime)}`;
           return (
             <div key={r.label}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", fontSize: 13, color: C.ink }}>
                 <span style={{ fontWeight: 600 }}>{r.label}</span>
-                <span style={{ color }}>{euro(estime)} / {euro(r.val)} · {status}</span>
+                <span style={{ color: textColor }}>{euro(estime)} / {euro(r.val)} · {status}</span>
               </div>
               <div style={{ height: 10, background: C.sunken, borderRadius: 6, marginTop: 6, overflow: "hidden" }}>
                 <div style={{ width: `${Math.min(100, pct)}%`, height: 10, background: color, borderRadius: 6 }} />
@@ -550,6 +552,13 @@ function SeuilsFiscauxCard({ data, computed }) {
             </div>
           );
         })}
+      </div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 11, color: C.gray, marginTop: 14 }}>
+        {[["Vert", C.zGreen, "moins de 70 %"], ["Jaune", "#F2C230", "70 à 90 %"], ["Orange", C.zOrange, "90 à 100 %"], ["Rouge", C.zRed, "dépassé"]].map(([n, col, t]) => (
+          <span key={n} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: col }} />{n} : {t}
+          </span>
+        ))}
       </div>
       {mrrMoyenAutorise !== null && (
         <div style={{ fontSize: 13, color: C.ink, marginTop: 16, padding: "10px 12px", background: C.sunken, borderRadius: 10, lineHeight: 1.5 }}>
@@ -1505,9 +1514,9 @@ function ReglagesTab({ data, save, lastExport, onBackup }) {
           Les seuils sont des estimations à valider avec un expert-comptable. Saisis ici le CA réellement encaissé chaque mois : sans saisie, le tableau de bord projette le MRR actuel.
         </p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <Field label="Repère prudent (€ de CA/an)"><input type="number" style={{ ...inputStyle, width: 120 }} value={s.caRepereLiberatoire ?? 28000} onChange={(e) => commit({ caRepereLiberatoire: parseFloat(e.target.value) || 0 })} /></Field>
-          <Field label="Plafond haut estimé (€)"><input type="number" style={{ ...inputStyle, width: 120 }} value={s.caPlafondMax ?? 34000} onChange={(e) => commit({ caPlafondMax: parseFloat(e.target.value) || 0 })} /></Field>
-          <Field label="Franchise de TVA (€)"><input type="number" style={{ ...inputStyle, width: 120 }} value={s.seuilTva ?? 37500} onChange={(e) => commit({ seuilTva: parseFloat(e.target.value) || 0 })} /></Field>
+          <Field label="Repère prudent (€ de CA/an)"><input type="number" style={{ ...inputStyle, width: 120, background: "#FFF9C4" }} value={s.caRepereLiberatoire ?? 28000} onChange={(e) => commit({ caRepereLiberatoire: parseFloat(e.target.value) || 0 })} /></Field>
+          <Field label="Plafond haut estimé (€)"><input type="number" style={{ ...inputStyle, width: 120, background: "#FFF9C4" }} value={s.caPlafondMax ?? 34000} onChange={(e) => commit({ caPlafondMax: parseFloat(e.target.value) || 0 })} /></Field>
+          <Field label="Franchise de TVA (€)"><input type="number" style={{ ...inputStyle, width: 120, background: "#FFF9C4" }} value={s.seuilTva ?? 37500} onChange={(e) => commit({ seuilTva: parseFloat(e.target.value) || 0 })} /></Field>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap", marginTop: 16 }}>
           <Field label="Mois"><input type="month" style={inputStyle} value={caMonth} onChange={(e) => setCaMonth(e.target.value)} /></Field>
