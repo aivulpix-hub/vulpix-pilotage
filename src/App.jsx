@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell,
 } from "recharts";
 import * as XLSX from "xlsx";
 import {
@@ -578,6 +579,79 @@ function SeuilsFiscauxCard({ data, computed }) {
   );
 }
 
+const PIE_COLORS = ["#FF8C00", "#3A6BD6", "#2F9E5E", "#F2C230", "#8E5BD6", "#D64541", "#17A2B8", "#E667A0", "#7A8B3A", "#5B6275", "#B07A4A", "#2D4A8A"];
+
+function ConcentrationCard({ computed }) {
+  const [view, setView] = useState("client");
+  const actifs = (computed.activeClients || []).filter((c) => (Number(c.mrr) || 0) > 0);
+  const total = actifs.reduce((s, c) => s + (Number(c.mrr) || 0), 0);
+  const groups = {};
+  actifs.forEach((c) => {
+    const key = view === "client" ? c.name : ((c.sector || "").trim() || "Non renseigné");
+    groups[key] = (groups[key] || 0) + (Number(c.mrr) || 0);
+  });
+  const slices = Object.entries(groups)
+    .map(([name, value]) => ({ name, value, pct: total > 0 ? (value / total) * 100 : 0 }))
+    .sort((a, b) => b.value - a.value);
+  const top = slices[0];
+  // vert < 20 %, jaune 20-25 %, orange 25-35 %, rouge au-delà
+  const tone = (pct) => (pct > 35 ? [C.zRed, C.red] : pct > 25 ? [C.zOrange, C.orangeText] : pct >= 20 ? ["#F2C230", "#8A6500"] : [C.zGreen, C.green]);
+  const [, topText] = top ? tone(top.pct) : [null, C.ink];
+  const unit = view === "client" ? "client" : "secteur";
+  return (
+    <Card>
+      <SectionTitle right={
+        <select style={inputStyle} value={view} onChange={(e) => setView(e.target.value)} aria-label="Vue">
+          <option value="client">Par client</option>
+          <option value="secteur">Par secteur</option>
+        </select>
+      }>Dépendance du MRR</SectionTitle>
+      {slices.length === 0 ? (
+        <div style={{ fontSize: 12, color: C.gray, padding: "8px 0" }}>Aucun client actif avec un MRR : le camembert apparaîtra dès la première saisie.</div>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ width: 200, height: 200, flexShrink: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={slices} dataKey="value" nameKey="name" innerRadius={52} outerRadius={92} paddingAngle={1} stroke={C.card} strokeWidth={2}>
+                    {slices.map((sl, i) => <Cell key={sl.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v, n) => [`${euro(v)} (${total > 0 ? Math.round((v / total) * 100) : 0} %)`, n]} contentStyle={{ fontFamily: FONT, fontSize: 12, borderRadius: 10, border: `1px solid ${C.line}`, boxShadow: "none" }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ flex: 1, minWidth: 220, display: "flex", flexDirection: "column", gap: 6 }}>
+              {slices.map((sl, i) => (
+                <div key={sl.name} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.ink }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 3, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sl.name}</span>
+                  <span style={{ color: C.gray }}>{euro(sl.value)}</span>
+                  <span style={{ width: 44, textAlign: "right", fontWeight: 600, color: tone(sl.pct)[1] }}>{Math.round(sl.pct)} %</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ fontSize: 13, color: C.ink, marginTop: 14, padding: "10px 12px", background: C.sunken, borderRadius: 10, lineHeight: 1.5 }}>
+            Le plus gros {unit} pèse <b style={{ color: topText }}>{Math.round(top.pct)} % du MRR</b> ({top.name}, {euro(top.value)} sur {euro(total)}).
+            {" "}{top.pct > 35 ? "Dépendance forte : perdre ce poste ferait chuter le revenu." : top.pct > 25 ? "À surveiller : viser moins de 25 %." : top.pct >= 20 ? "Limite haute : au-delà de 25 %, la dépendance devient sensible." : "Répartition saine (moins de 20 %)."}
+          </div>
+          <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 11, color: C.gray, marginTop: 12 }}>
+            {[["Vert", C.zGreen, "moins de 20 %"], ["Jaune", "#F2C230", "20 à 25 %"], ["Orange", C.zOrange, "25 à 35 %"], ["Rouge", C.zRed, "plus de 35 %"]].map(([n, col, t]) => (
+              <span key={n} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: col }} />{n} : {t}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+      <div style={{ fontSize: 11, color: C.faint, marginTop: 12, lineHeight: 1.5 }}>
+        Calculé sur les clients au statut « actif ». Le camembert se met à jour dès que vous modifiez un MRR, un statut ou un secteur dans la fiche client.
+      </div>
+    </Card>
+  );
+}
+
 function DashboardTab({ data, computed, recos, onToggleReminder }) {
   const tjmMax = Math.max(80, data.settings.tjmSeuils[2] * 1.5); // échelle fixe : au-delà, l'aiguille reste en butée
   const tjmZone = zoneColorForTJM(computed.tjmHoraire, data.settings.tjmSeuils);
@@ -642,6 +716,8 @@ function DashboardTab({ data, computed, recos, onToggleReminder }) {
       </Card>
 
       <SeuilsFiscauxCard data={data} computed={computed} />
+
+      <ConcentrationCard computed={computed} />
 
       {/* HISTORIQUE */}
       <Card>

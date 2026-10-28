@@ -68,3 +68,7 @@ expert-comptable.
 - Le calcul du TJM, MRR, net estimé, recommandations : code inchangé.
 - L'export Excel : toujours disponible.
 - Le design : strictement identique.
+
+## Dépendance du MRR (tableau de bord)
+
+Camembert « Dépendance du MRR » : part de chaque client actif dans le MRR, avec bascule « Par client / Par secteur ». Il se met à jour dès qu'un MRR, un statut ou un secteur change. Alerte sur le plus gros poste : vert < 20 %, jaune 20-25 %, orange 25-35 %, rouge > 35 %.
