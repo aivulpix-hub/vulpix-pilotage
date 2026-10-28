@@ -72,3 +72,7 @@ expert-comptable.
 ## Dépendance du MRR (tableau de bord)
 
 Camembert « Dépendance du MRR » : part de chaque client actif dans le MRR, avec bascule « Par client / Par secteur ». Il se met à jour dès qu'un MRR, un statut ou un secteur change. Alerte sur le plus gros poste : vert < 20 %, jaune 20-25 %, orange 25-35 %, rouge > 35 %.
+
+## Temps passé par client (tableau de bord)
+
+Second camembert : part du temps saisi par client, par mois ou sur tous les mois. Une session partagée est répartie à parts égales (au prorata du nombre de posts pour les posts) ; les sessions sans client apparaissent en « Sans client précis ». Chaque ligne rappelle la part de MRR du client, et la phrase de synthèse signale celui qui prend plus de 5 points de temps au-delà de sa part de MRR. Les couleurs des clients sont identiques dans les deux camemberts.

@@ -581,8 +581,14 @@ function SeuilsFiscauxCard({ data, computed }) {
 
 const PIE_COLORS = ["#FF8C00", "#3A6BD6", "#2F9E5E", "#F2C230", "#8E5BD6", "#D64541", "#17A2B8", "#E667A0", "#7A8B3A", "#5B6275", "#B07A4A", "#2D4A8A"];
 
-function ConcentrationCard({ computed }) {
+const clientColor = (clients, name) => {
+  const i = (clients || []).findIndex((c) => c.name === name);
+  return i >= 0 ? PIE_COLORS[i % PIE_COLORS.length] : "#B8BCC8";
+};
+
+function ConcentrationCard({ data, computed }) {
   const [view, setView] = useState("client");
+  const colorOf = (sl, i) => (view === "client" ? clientColor(data.clients, sl.name) : PIE_COLORS[i % PIE_COLORS.length]);
   const actifs = (computed.activeClients || []).filter((c) => (Number(c.mrr) || 0) > 0);
   const total = actifs.reduce((s, c) => s + (Number(c.mrr) || 0), 0);
   const groups = {};
@@ -615,7 +621,7 @@ function ConcentrationCard({ computed }) {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={slices} dataKey="value" nameKey="name" innerRadius={52} outerRadius={92} paddingAngle={1} stroke={C.card} strokeWidth={2}>
-                    {slices.map((sl, i) => <Cell key={sl.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                    {slices.map((sl, i) => <Cell key={sl.name} fill={colorOf(sl, i)} />)}
                   </Pie>
                   <Tooltip formatter={(v, n) => [`${euro(v)} (${total > 0 ? Math.round((v / total) * 100) : 0} %)`, n]} contentStyle={{ fontFamily: FONT, fontSize: 12, borderRadius: 10, border: `1px solid ${C.line}`, boxShadow: "none" }} />
                 </PieChart>
@@ -624,7 +630,7 @@ function ConcentrationCard({ computed }) {
             <div style={{ flex: 1, minWidth: 220, display: "flex", flexDirection: "column", gap: 6 }}>
               {slices.map((sl, i) => (
                 <div key={sl.name} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.ink }}>
-                  <span style={{ width: 10, height: 10, borderRadius: 3, background: PIE_COLORS[i % PIE_COLORS.length], flexShrink: 0 }} />
+                  <span style={{ width: 10, height: 10, borderRadius: 3, background: colorOf(sl, i), flexShrink: 0 }} />
                   <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sl.name}</span>
                   <span style={{ color: C.gray }}>{euro(sl.value)}</span>
                   <span style={{ width: 44, textAlign: "right", fontWeight: 600, color: tone(sl.pct)[1] }}>{Math.round(sl.pct)} %</span>
@@ -647,6 +653,95 @@ function ConcentrationCard({ computed }) {
       )}
       <div style={{ fontSize: 11, color: C.faint, marginTop: 12, lineHeight: 1.5 }}>
         Calculé sur les clients au statut « actif ». Le camembert se met à jour dès que vous modifiez un MRR, un statut ou un secteur dans la fiche client.
+      </div>
+    </Card>
+  );
+}
+
+const fmtDuree = (min) => `${Math.floor(min / 60)} h ${String(Math.round(min % 60)).padStart(2, "0")}`;
+
+function TempsClientCard({ data, computed }) {
+  const months = useMemo(() => {
+    const set = new Set([computed.curMonth]);
+    data.sessions.forEach((s) => { if (s.date) set.add(s.date.slice(0, 7)); });
+    return [...set].sort().reverse();
+  }, [data.sessions, computed.curMonth]);
+  const [period, setPeriod] = useState(computed.curMonth);
+  const minutes = {};
+  let total = 0;
+  const add = (name, m) => { minutes[name] = (minutes[name] || 0) + m; };
+  data.sessions
+    .filter((s) => s.date && (period === "all" || s.date.startsWith(period)))
+    .forEach((s) => {
+      const d = Number(s.duration) || 0;
+      if (d <= 0) return;
+      total += d;
+      const cl = s.clients || [];
+      if (cl.length === 0) { add("Sans client précis", d); return; }
+      // posts : répartition au prorata du nombre de posts ; sinon à parts égales entre les clients de la session
+      const wts = cl.map((x) => ((s.category === "posts" || s.category === "geoposts") && x.count > 0 ? x.count : 1));
+      const sum = wts.reduce((a, b) => a + b, 0);
+      cl.forEach((x, i) => {
+        const cur = data.clients.find((c) => c.id === x.id);
+        add(cur ? cur.name : x.name || "Client supprimé", (d * wts[i]) / sum);
+      });
+    });
+  const mrrTotal = computed.mrrActif || 0;
+  const mrrPct = {};
+  (computed.activeClients || []).forEach((c) => { if (mrrTotal > 0) mrrPct[c.name] = ((Number(c.mrr) || 0) / mrrTotal) * 100; });
+  const slices = Object.entries(minutes)
+    .map(([name, value]) => {
+      const pct = total > 0 ? (value / total) * 100 : 0;
+      return { name, value, pct, mrr: mrrPct[name], gap: mrrPct[name] !== undefined ? pct - mrrPct[name] : null };
+    })
+    .sort((a, b) => b.value - a.value);
+  const heavy = slices.filter((x) => x.gap !== null && x.gap > 5).sort((a, b) => b.gap - a.gap)[0];
+  const label = period === "all" ? "tous les mois" : monthLabel(period);
+  return (
+    <Card>
+      <SectionTitle right={
+        <select style={inputStyle} value={period} onChange={(e) => setPeriod(e.target.value)} aria-label="Période">
+          {months.map((m) => <option key={m} value={m}>{monthLabel(m)}</option>)}
+          <option value="all">Tous les mois</option>
+        </select>
+      }>Temps passé par client</SectionTitle>
+      {slices.length === 0 ? (
+        <div style={{ fontSize: 12, color: C.gray, padding: "8px 0" }}>Aucune session saisie sur cette période : le camembert apparaîtra dès la première saisie de temps.</div>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ width: 200, height: 200, flexShrink: 0 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={slices} dataKey="value" nameKey="name" innerRadius={52} outerRadius={92} paddingAngle={1} stroke={C.card} strokeWidth={2}>
+                    {slices.map((sl) => <Cell key={sl.name} fill={clientColor(data.clients, sl.name)} />)}
+                  </Pie>
+                  <Tooltip formatter={(v, n) => [`${fmtDuree(v)} (${total > 0 ? Math.round((v / total) * 100) : 0} %)`, n]} contentStyle={{ fontFamily: FONT, fontSize: 12, borderRadius: 10, border: `1px solid ${C.line}`, boxShadow: "none" }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div style={{ flex: 1, minWidth: 240, display: "flex", flexDirection: "column", gap: 6 }}>
+              {slices.map((sl) => (
+                <div key={sl.name} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.ink }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 3, background: clientColor(data.clients, sl.name), flexShrink: 0 }} />
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sl.name}</span>
+                  <span style={{ color: C.gray }}>{fmtDuree(sl.value)}</span>
+                  <span style={{ width: 44, textAlign: "right", fontWeight: 600, color: sl.gap !== null && sl.gap > 5 ? C.orangeText : C.ink }}>{Math.round(sl.pct)} %</span>
+                  <span style={{ width: 62, textAlign: "right", fontSize: 11, color: C.faint }}>{sl.mrr !== undefined ? `MRR ${Math.round(sl.mrr)} %` : ""}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ fontSize: 13, color: C.ink, marginTop: 14, padding: "10px 12px", background: C.sunken, borderRadius: 10, lineHeight: 1.5 }}>
+            {fmtDuree(total)} saisies sur {label}.
+            {heavy
+              ? <> <b style={{ color: C.orangeText }}>{heavy.name}</b> prend {Math.round(heavy.pct)} % du temps pour {Math.round(heavy.mrr)} % du MRR : c'est le client le moins rentable en temps.</>
+              : " Aucun client ne prend nettement plus de temps que sa part de MRR."}
+          </div>
+        </>
+      )}
+      <div style={{ fontSize: 11, color: C.faint, marginTop: 12, lineHeight: 1.5 }}>
+        Toutes les sessions comptent, RDV compris. Une session partagée entre plusieurs clients est répartie à parts égales (au prorata du nombre de posts pour les posts). Le pourcentage en orange signale un client qui prend plus de 5 points de temps au-delà de sa part de MRR.
       </div>
     </Card>
   );
@@ -717,7 +812,9 @@ function DashboardTab({ data, computed, recos, onToggleReminder }) {
 
       <SeuilsFiscauxCard data={data} computed={computed} />
 
-      <ConcentrationCard computed={computed} />
+      <ConcentrationCard data={data} computed={computed} />
+
+      <TempsClientCard data={data} computed={computed} />
 
       {/* HISTORIQUE */}
       <Card>
